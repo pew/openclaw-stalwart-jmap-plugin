@@ -1,0 +1,104 @@
+{
+  "id": "stalwart-jmap",
+  "name": "Stalwart JMAP",
+  "description": "Typed Stalwart JMAP tools for email, calendars, contacts, and raw JMAP escape hatches.",
+  "version": "0.2.0",
+  "uiHints": {
+    "baseUrl": {
+      "label": "Base URL",
+      "help": "Base Stalwart URL, for example https://mail.example.com"
+    },
+    "sessionUrl": {
+      "label": "Session URL",
+      "help": "Optional explicit discovery URL, for example https://mail.example.com/.well-known/jmap or https://mail.example.com/jmap",
+      "advanced": true
+    },
+    "username": {
+      "label": "Username",
+      "help": "Mailbox address or login name for Basic auth",
+      "advanced": true
+    },
+    "password": {
+      "label": "Password",
+      "help": "Only used for Basic auth",
+      "sensitive": true,
+      "advanced": true
+    },
+    "accessToken": {
+      "label": "OAuth Access Token",
+      "help": "Preferred JMAP bearer token",
+      "sensitive": true
+    },
+    "accountId": {
+      "label": "Account ID",
+      "help": "Optional default JMAP account id override",
+      "advanced": true
+    },
+    "identityId": {
+      "label": "Identity ID",
+      "help": "Optional default sending identity override",
+      "advanced": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "description": "Base URL of the Stalwart server, for example https://mail.example.com"
+      },
+      "sessionUrl": {
+        "type": "string",
+        "description": "Optional explicit JMAP discovery URL, for example https://mail.example.com/.well-known/jmap or https://mail.example.com/jmap"
+      },
+      "username": {
+        "type": "string",
+        "description": "JMAP username for Basic auth, usually the mailbox address"
+      },
+      "password": {
+        "type": "string",
+        "description": "Password for Basic auth. Prefer OAuth accessToken if possible."
+      },
+      "accessToken": {
+        "type": "string",
+        "description": "OAuth bearer token for JMAP. Preferred over password."
+      },
+      "accountId": {
+        "type": "string",
+        "description": "Optional default JMAP account id. Per-tool accountId parameters still override this."
+      },
+      "identityId": {
+        "type": "string",
+        "description": "Optional default JMAP identity id for sending mail. If omitted, the plugin resolves one via Identity/get."
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 120000,
+        "default": 30000,
+        "description": "HTTP timeout for JMAP requests."
+      }
+    },
+    "anyOf": [
+      {
+        "required": ["baseUrl"]
+      },
+      {
+        "required": ["sessionUrl"]
+      }
+    ],
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "required": ["accessToken"]
+          },
+          {
+            "required": ["username", "password"]
+          }
+        ]
+      }
+    ]
+  }
+}

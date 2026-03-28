@@ -1,0 +1,42 @@
+{
+  "name": "stalwart-jmap",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "OpenClaw plugin that adds typed Stalwart JMAP tools for email, calendar, and contacts.",
+  "files": [
+    "dist/index.js",
+    "openclaw.plugin.json",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build",
+    "test": "npm run build && node --test dist/test/index.test.js"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.24"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "openclaw": "2026.3.24",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "install": {
+      "npmSpec": "stalwart-jmap",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.3.24"
+    },
+    "release": {
+      "publishToNpm": true
+    }
+  }
+}
