@@ -2,7 +2,7 @@
   "id": "stalwart-jmap",
   "name": "Stalwart JMAP",
   "description": "Typed Stalwart JMAP tools for email, calendars, contacts, and raw JMAP escape hatches.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "uiHints": {
     "baseUrl": {
       "label": "Base URL",
@@ -79,26 +79,6 @@
         "default": 30000,
         "description": "HTTP timeout for JMAP requests."
       }
-    },
-    "anyOf": [
-      {
-        "required": ["baseUrl"]
-      },
-      {
-        "required": ["sessionUrl"]
-      }
-    ],
-    "allOf": [
-      {
-        "anyOf": [
-          {
-            "required": ["accessToken"]
-          },
-          {
-            "required": ["username", "password"]
-          }
-        ]
-      }
-    ]
+    }
   }
 }

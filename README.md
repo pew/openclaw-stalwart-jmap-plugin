@@ -75,6 +75,8 @@ https://mail.example.com/jmap/session
 
 So use `sessionUrl`, not `baseUrl`.
 
+This plugin accepts either `sessionUrl` or `baseUrl`. For OpenClaw compatibility, the manifest keeps the config schema simple and the plugin enforces the `sessionUrl`/`baseUrl` and auth requirements at runtime.
+
 ### Recommended working config
 
 Use the exact JMAP session URL and either:
