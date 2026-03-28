@@ -19,12 +19,9 @@
     "openclaw": ">=2026.3.24"
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
+    "@types/node": "^25.5.0",
     "openclaw": "2026.3.24",
-    "typescript": "^5.9.2"
-  },
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.41"
+    "typescript": "^6.0.2"
   },
   "openclaw": {
     "extensions": [
@@ -38,5 +35,8 @@
     "release": {
       "publishToNpm": true
     }
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.49"
   }
 }
