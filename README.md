@@ -5,8 +5,9 @@ Native OpenClaw plugin for Stalwart JMAP. It adds typed tools for:
 - email reads and updates
 - email sending
 - mailbox and identity discovery
-- calendar reads and writes
-- contact reads
+- calendar reads, event writes, and RSVP replies
+- contact reads and writes
+- address book and participant identity discovery
 - raw JMAP requests when a typed wrapper is missing
 
 ## Install
@@ -29,6 +30,38 @@ openclaw gateway restart
 ```
 
 Use `-l` during development so OpenClaw uses the repo directly instead of a copied snapshot.
+
+## Upgrade
+
+If you already have the plugin installed, the upgrade steps depend on how it was installed.
+
+Linked local install (`openclaw plugins install -l ...`):
+
+```bash
+cd /path/to/stalwart-jmap-plugin
+git pull
+npm install
+npm run build
+openclaw gateway restart
+```
+
+Copied local install or published npm install:
+
+```bash
+openclaw plugins uninstall stalwart-jmap
+openclaw plugins install stalwart-jmap
+openclaw gateway restart
+```
+
+If you install from a local path without `-l`, reinstall from that path instead:
+
+```bash
+openclaw plugins uninstall stalwart-jmap
+openclaw plugins install /path/to/stalwart-jmap-plugin
+openclaw gateway restart
+```
+
+Config usually does not need to change during upgrade. Keep your existing `plugins.entries.stalwart-jmap.config` unless you are also changing your Stalwart endpoint or credentials.
 
 ## Configure
 
@@ -113,7 +146,9 @@ Always available:
 
 - `stalwart_jmap_session`
 - `stalwart_mailbox_get`
+- `stalwart_addressbook_get`
 - `stalwart_identity_get`
+- `stalwart_participant_identity_get`
 - `stalwart_mail_query`
 - `stalwart_mail_get`
 - `stalwart_calendar_get`
@@ -128,6 +163,8 @@ Optional or side-effecting:
 - `stalwart_mail_send`
 - `stalwart_mail_update`
 - `stalwart_calendar_event_set`
+- `stalwart_calendar_event_rsvp`
+- `stalwart_contact_set`
 
 ## Smoke test
 
@@ -143,6 +180,14 @@ Then verify:
 2. `stalwart_identity_get`
 3. `stalwart_mail_query`
 4. `stalwart_mail_get`
+5. `stalwart_addressbook_get`
+6. `stalwart_participant_identity_get`
+
+For write tests:
+
+1. Use `stalwart_contact_set` to create a disposable contact with only a name and email.
+2. Use `stalwart_calendar_event_set` with `sendSchedulingMessages: true` to create a test event with participants.
+3. Use `stalwart_calendar_event_rsvp` to accept or decline that event.
 
 ## Will OpenClaw use this automatically?
 
@@ -178,7 +223,11 @@ When working with email, calendars, or contacts:
 - Use `stalwart_identity_get` before sending if the sender identity is unclear.
 - Use `stalwart_mail_query` and `stalwart_mail_get` for mail reads.
 - Use `stalwart_mail_send` for outbound mail.
-- Use `stalwart_calendar_get`, `stalwart_calendar_event_query`, and `stalwart_calendar_event_set` for calendar work.
+- Use `stalwart_addressbook_get` before creating contacts if the writable store is unclear.
+- Use `stalwart_contact_set` for contact create, update, and delete.
+- Use `stalwart_participant_identity_get` before calendar scheduling or RSVP work if the acting identity is unclear.
+- Use `stalwart_calendar_get`, `stalwart_calendar_event_query`, and `stalwart_calendar_event_set` for calendar create and edit flows.
+- Use `stalwart_calendar_event_rsvp` for accept, tentative, decline, or reset RSVP actions.
 - Do not invent mailbox ids, account ids, or identity ids; resolve them first.
 ```
 

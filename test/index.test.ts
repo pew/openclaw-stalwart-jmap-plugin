@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyDefaultContainerIds,
   buildMailSendMethodCalls,
+  buildCalendarEventRsvpPatch,
   deriveUsingFromMethodCalls,
   ensureConfig,
   JMAP_CAPABILITIES,
   resolveSessionDiscoveryUrls,
+  scheduleIdsMatch,
   StalwartJmapClient,
 } from "../index.js";
 
@@ -33,6 +36,8 @@ test("deriveUsingFromMethodCalls keeps only required capabilities", () => {
     ["Email/set", {}, "c1"],
     ["EmailSubmission/set", {}, "c2"],
     ["CalendarEvent/get", {}, "c3"],
+    ["AddressBook/get", {}, "c4"],
+    ["ParticipantIdentity/get", {}, "c5"],
   ]);
 
   assert.deepEqual(using, [
@@ -40,6 +45,7 @@ test("deriveUsingFromMethodCalls keeps only required capabilities", () => {
     JMAP_CAPABILITIES.mail,
     JMAP_CAPABILITIES.submission,
     JMAP_CAPABILITIES.calendars,
+    JMAP_CAPABILITIES.contacts,
   ]);
 });
 
@@ -77,6 +83,55 @@ test("buildMailSendMethodCalls produces RFC 8621-compliant text body wiring", ()
     },
   });
   assert.deepEqual(created.textBody, [{ partId: "body1", type: "text/plain" }]);
+});
+
+test("applyDefaultContainerIds injects a default id only when the object omits one", () => {
+  const create = applyDefaultContainerIds(
+    {
+      contact1: { firstName: "Ada" },
+      contact2: { firstName: "Grace", addressBookIds: { existing: true } },
+    },
+    "addressBookIds",
+    "ab-default",
+  );
+
+  assert.deepEqual(create, {
+    contact1: {
+      firstName: "Ada",
+      addressBookIds: { "ab-default": true },
+    },
+    contact2: {
+      firstName: "Grace",
+      addressBookIds: { existing: true },
+    },
+  });
+});
+
+test("buildCalendarEventRsvpPatch encodes participant ids and emits RSVP fields", () => {
+  const patch = buildCalendarEventRsvpPatch({
+    participantId: "mailto:ada/example~1",
+    participationStatus: "tentative",
+    participationComment: "Reviewing",
+    expectReply: false,
+  });
+
+  assert.deepEqual(patch, {
+    "participants/mailto:ada~1example~01/participationStatus": "tentative",
+    "participants/mailto:ada~1example~01/participationComment": "Reviewing",
+    "participants/mailto:ada~1example~01/expectReply": false,
+  });
+});
+
+test("scheduleIdsMatch does not lowercase mailto local parts", () => {
+  assert.equal(scheduleIdsMatch("mailto:User@example.com", "mailto:user@example.com"), false);
+  assert.equal(scheduleIdsMatch("mailto:user@example.com", "mailto:user@example.com"), true);
+});
+
+test("scheduleIdsMatch tolerates scheme and host case differences for hierarchical URIs", () => {
+  assert.equal(
+    scheduleIdsMatch("HTTPS://Calendar.Example.com/events/abc?view=1", "https://calendar.example.com/events/abc?view=1"),
+    true,
+  );
 });
 
 test("session discovery falls back from /.well-known/jmap to /jmap", async () => {

@@ -61,6 +61,29 @@ type MailSendParams = {
   keywords?: Record<string, boolean>;
 };
 
+type Rights = {
+  mayWrite?: boolean;
+  mayWriteAll?: boolean;
+  mayWriteOwn?: boolean;
+  mayRSVP?: boolean;
+};
+
+type NamedContainer = {
+  id?: string;
+  name?: string;
+  role?: string;
+  isDefault?: boolean;
+  myRights?: Rights;
+};
+
+type ParticipantIdentity = {
+  id?: string;
+  name?: string;
+  scheduleId?: string;
+  sendTo?: Record<string, string>;
+  isDefault?: boolean;
+};
+
 function normalizeUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
@@ -139,13 +162,64 @@ function capabilityForMethod(methodName: string): JmapCapabilityKey[] {
       return ["submission", "mail"];
     case "Calendar":
     case "CalendarEvent":
+    case "ParticipantIdentity":
       return ["calendars"];
+    case "AddressBook":
     case "ContactCard":
     case "ContactGroup":
       return ["contacts"];
     default:
       return [];
   }
+}
+
+function parseScheduleId(value: string): URL | undefined {
+  try {
+    return new URL(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export function scheduleIdsMatch(left: string, right: string): boolean {
+  if (left === right) {
+    return true;
+  }
+
+  const leftUrl = parseScheduleId(left);
+  const rightUrl = parseScheduleId(right);
+  if (!leftUrl || !rightUrl) {
+    return false;
+  }
+
+  return (
+    leftUrl.protocol.toLowerCase() === rightUrl.protocol.toLowerCase() &&
+    leftUrl.hostname.toLowerCase() === rightUrl.hostname.toLowerCase() &&
+    leftUrl.port === rightUrl.port &&
+    leftUrl.username === rightUrl.username &&
+    leftUrl.password === rightUrl.password &&
+    leftUrl.pathname === rightUrl.pathname &&
+    leftUrl.search === rightUrl.search &&
+    leftUrl.hash === rightUrl.hash
+  );
+}
+
+function encodePatchPathSegment(value: string): string {
+  return value.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+function pickDefaultWritableContainer(items: NamedContainer[], writeKey: keyof Rights): NamedContainer | undefined {
+  const writableDefaults = items.filter((item) => item.id && item.isDefault && item.myRights?.[writeKey] === true);
+  if (writableDefaults[0]) {
+    return writableDefaults[0];
+  }
+
+  const anyDefault = items.find((item) => item.id && item.isDefault);
+  if (anyDefault && anyDefault.myRights?.[writeKey] !== false) {
+    return anyDefault;
+  }
+
+  return items.find((item) => item.id && item.myRights?.[writeKey] !== false);
 }
 
 export function deriveUsingFromMethodCalls(methodCalls: unknown[]): string[] {
@@ -250,6 +324,57 @@ export function buildMailSendMethodCalls(params: {
       "mail-submit-1",
     ],
   ];
+}
+
+export function applyDefaultContainerIds<T extends Record<string, unknown>>(
+  create: Record<string, T> | undefined,
+  containerKey: "addressBookIds" | "calendarIds",
+  containerId: string,
+): Record<string, T> | undefined {
+  if (!create) {
+    return undefined;
+  }
+
+  const injected = Object.fromEntries(
+    Object.entries(create).map(([creationId, value]) => {
+      if (value[containerKey] !== undefined) {
+        return [creationId, value];
+      }
+
+      return [
+        creationId,
+        {
+          ...value,
+          [containerKey]: {
+            [containerId]: true,
+          },
+        },
+      ];
+    }),
+  ) as Record<string, T>;
+
+  return injected;
+}
+
+export function buildCalendarEventRsvpPatch(params: {
+  participantId: string;
+  participationStatus: "accepted" | "tentative" | "declined" | "needs-action";
+  participationComment?: string | null;
+  expectReply?: boolean;
+}): Record<string, unknown> {
+  const encodedParticipantId = encodePatchPathSegment(params.participantId);
+  const patch: Record<string, unknown> = {
+    [`participants/${encodedParticipantId}/participationStatus`]: params.participationStatus,
+  };
+
+  if (params.participationComment !== undefined) {
+    patch[`participants/${encodedParticipantId}/participationComment`] = params.participationComment;
+  }
+  if (params.expectReply !== undefined) {
+    patch[`participants/${encodedParticipantId}/expectReply`] = params.expectReply;
+  }
+
+  return patch;
 }
 
 export class StalwartJmapClient {
@@ -392,6 +517,105 @@ export class StalwartJmapClient {
 
     return mailbox.id;
   }
+
+  async resolveAddressBookId(accountId?: string): Promise<string> {
+    const resolvedAccountId = accountId ?? (await this.accountIdFor("contacts"));
+    const res = await this.call([
+      [
+        "AddressBook/get",
+        { accountId: resolvedAccountId, ids: null, properties: ["id", "name", "isDefault", "myRights"] },
+        "addressbook-get-1",
+      ],
+    ]);
+    const addressBooks =
+      (res.methodResponses?.[0] as [string, { list?: NamedContainer[] }, string] | undefined)?.[1]?.list ?? [];
+    const addressBook = pickDefaultWritableContainer(addressBooks, "mayWrite");
+
+    if (!addressBook?.id) {
+      throw new Error("stalwart-jmap: could not resolve a writable address book; pass addressBookId explicitly");
+    }
+
+    return addressBook.id;
+  }
+
+  async resolveCalendarId(accountId?: string): Promise<string> {
+    const resolvedAccountId = accountId ?? (await this.accountIdFor("calendars"));
+    const res = await this.call([
+      [
+        "Calendar/get",
+        { accountId: resolvedAccountId, ids: null, properties: ["id", "name", "isDefault", "myRights"] },
+        "calendar-get-1",
+      ],
+    ]);
+    const calendars =
+      (res.methodResponses?.[0] as [string, { list?: NamedContainer[] }, string] | undefined)?.[1]?.list ?? [];
+    const calendar = pickDefaultWritableContainer(calendars, "mayWriteAll") ?? pickDefaultWritableContainer(calendars, "mayWriteOwn");
+
+    if (!calendar?.id) {
+      throw new Error("stalwart-jmap: could not resolve a writable calendar; pass calendarId explicitly");
+    }
+
+    return calendar.id;
+  }
+
+  async resolveParticipantIdentity(accountId?: string): Promise<ParticipantIdentity> {
+    const resolvedAccountId = accountId ?? (await this.accountIdFor("calendars"));
+    const res = await this.call([
+      [
+        "ParticipantIdentity/get",
+        { accountId: resolvedAccountId, ids: null, properties: ["id", "name", "scheduleId", "sendTo", "isDefault"] },
+        "participant-identity-get-1",
+      ],
+    ]);
+    const identities =
+      (res.methodResponses?.[0] as [string, { list?: ParticipantIdentity[] }, string] | undefined)?.[1]?.list ?? [];
+    const identity = identities.find((item) => item.id && item.isDefault) ?? identities.find((item) => item.id);
+
+    if (!identity?.id || !identity.scheduleId) {
+      throw new Error("stalwart-jmap: no participant identity available; resolve one explicitly first");
+    }
+
+    return identity;
+  }
+
+  async resolveEventParticipantId(params: {
+    accountId?: string;
+    eventId: string;
+    participantId?: string;
+  }): Promise<string> {
+    if (params.participantId) {
+      return params.participantId;
+    }
+
+    const resolvedAccountId = params.accountId ?? (await this.accountIdFor("calendars"));
+    const [eventRes, identity] = await Promise.all([
+      this.call([
+        [
+          "CalendarEvent/get",
+          { accountId: resolvedAccountId, ids: [params.eventId], properties: ["id", "participants"] },
+          "calendar-event-get-1",
+        ],
+      ]),
+      this.resolveParticipantIdentity(resolvedAccountId),
+    ]);
+
+    const event = (eventRes.methodResponses?.[0] as [string, { list?: Array<{ participants?: Record<string, { scheduleId?: string }> }> }, string] | undefined)?.[1]
+      ?.list?.[0];
+    const participants = event?.participants ?? {};
+    const identityScheduleId = identity.scheduleId as string;
+
+    const match = Object.entries(participants).find(([, participant]) => {
+      return typeof participant.scheduleId === "string" && scheduleIdsMatch(participant.scheduleId, identityScheduleId);
+    });
+
+    if (!match?.[0]) {
+      throw new Error(
+        "stalwart-jmap: could not match the current account to an event participant; pass participantId explicitly or inspect ParticipantIdentity/get",
+      );
+    }
+
+    return match[0];
+  }
 }
 
 const accountIdField = Type.Optional(Type.String({ description: "Optional JMAP account id override for this call." }));
@@ -399,6 +623,7 @@ const propertiesField = Type.Optional(Type.Array(Type.String(), { description: "
 const filterField = Type.Optional(Type.Any({ description: "JMAP filter object passed through as-is." }));
 const sortField = Type.Optional(Type.Array(Type.Any(), { description: "JMAP sort array passed through as-is." }));
 const idsField = Type.Optional(Type.Array(Type.String(), { minItems: 1, description: "Optional object ids. Omit to fetch all." }));
+const mutableRecordField = Type.Optional(Type.Record(Type.String(), Type.Any()));
 const addressField = Type.Object({
   email: Type.String(),
   name: Type.Optional(Type.String()),
@@ -443,6 +668,24 @@ export default definePluginEntry({
     });
 
     api.registerTool({
+      name: "stalwart_addressbook_get",
+      label: "Stalwart AddressBook Get",
+      description: "Fetch address books via JMAP AddressBook/get so the agent can resolve writable contact stores before creating or moving contacts.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        ids: idsField,
+        properties: propertiesField,
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("contacts"));
+        const res = await client.call([
+          ["AddressBook/get", { accountId, ids: params.ids ?? null, properties: params.properties }, "addressbook-get-1"],
+        ]);
+        return textResult(res);
+      },
+    });
+
+    api.registerTool({
       name: "stalwart_identity_get",
       label: "Stalwart Identity Get",
       description: "Fetch sending identities via JMAP Identity/get. Use this before sending if the correct From identity is unclear.",
@@ -474,6 +717,28 @@ export default definePluginEntry({
       },
       { optional: true },
     );
+
+    api.registerTool({
+      name: "stalwart_participant_identity_get",
+      label: "Stalwart Participant Identity Get",
+      description: "Fetch participant identities via JMAP ParticipantIdentity/get. Use this before creating scheduled events or if RSVP identity matching is unclear.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        ids: idsField,
+        properties: propertiesField,
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+        const res = await client.call([
+          [
+            "ParticipantIdentity/get",
+            { accountId, ids: params.ids ?? null, properties: params.properties },
+            "participant-identity-get-1",
+          ],
+        ]);
+        return textResult(res);
+      },
+    });
 
     api.registerTool({
       name: "stalwart_mail_query",
@@ -683,20 +948,26 @@ export default definePluginEntry({
         description: "Create, update, or destroy calendar events via JMAP CalendarEvent/set.",
         parameters: Type.Object({
           accountId: accountIdField,
-          create: Type.Optional(Type.Record(Type.String(), Type.Any())),
-          update: Type.Optional(Type.Record(Type.String(), Type.Any())),
+          calendarId: Type.Optional(Type.String({ description: "Default calendar id applied to created events that omit calendarIds." })),
+          create: mutableRecordField,
+          update: mutableRecordField,
           destroy: Type.Optional(Type.Array(Type.String())),
+          sendSchedulingMessages: Type.Optional(
+            Type.Boolean({ default: false, description: "If true, JMAP scheduling messages are sent for event creates or updates." }),
+          ),
         }),
         async execute(_id, params) {
           const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+          const calendarId = params.create ? params.calendarId ?? (await client.resolveCalendarId(accountId)) : undefined;
           const res = await client.call([
             [
               "CalendarEvent/set",
               {
                 accountId,
-                create: params.create,
+                create: calendarId ? applyDefaultContainerIds(params.create, "calendarIds", calendarId) : params.create,
                 update: params.update,
                 destroy: params.destroy,
+                sendSchedulingMessages: params.sendSchedulingMessages ?? false,
               },
               "calendar-event-set-1",
             ],
@@ -756,6 +1027,91 @@ export default definePluginEntry({
         return textResult(res);
       },
     });
+
+    api.registerTool(
+      {
+        name: "stalwart_contact_set",
+        label: "Stalwart Contact Set",
+        description: "Create, update, or destroy contacts via JMAP ContactCard/set. If a created card omits addressBookIds, the plugin applies a writable default address book.",
+        parameters: Type.Object({
+          accountId: accountIdField,
+          addressBookId: Type.Optional(Type.String({ description: "Default address book id applied to created contacts that omit addressBookIds." })),
+          create: mutableRecordField,
+          update: mutableRecordField,
+          destroy: Type.Optional(Type.Array(Type.String())),
+        }),
+        async execute(_id, params) {
+          const accountId = params.accountId ?? (await client.accountIdFor("contacts"));
+          const addressBookId = params.create ? params.addressBookId ?? (await client.resolveAddressBookId(accountId)) : undefined;
+          const res = await client.call([
+            [
+              "ContactCard/set",
+              {
+                accountId,
+                create: addressBookId ? applyDefaultContainerIds(params.create, "addressBookIds", addressBookId) : params.create,
+                update: params.update,
+                destroy: params.destroy,
+              },
+              "contact-set-1",
+            ],
+          ]);
+          return textResult(res);
+        },
+      },
+      { optional: true },
+    );
+
+    api.registerTool(
+      {
+        name: "stalwart_calendar_event_rsvp",
+        label: "Stalwart Calendar Event RSVP",
+        description: "Accept, tentatively accept, decline, or reset your RSVP for a calendar event. The plugin matches your default participant identity unless participantId is provided.",
+        parameters: Type.Object({
+          accountId: accountIdField,
+          eventId: Type.String({ description: "CalendarEvent id to update. A synthetic instance id is allowed for single-occurrence RSVPs." }),
+          participantId: Type.Optional(Type.String({ description: "Optional participant key override inside the event participants object." })),
+          participationStatus: Type.Union([
+            Type.Literal("accepted"),
+            Type.Literal("tentative"),
+            Type.Literal("declined"),
+            Type.Literal("needs-action"),
+          ]),
+          participationComment: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          expectReply: Type.Optional(Type.Boolean()),
+          sendSchedulingMessages: Type.Optional(
+            Type.Boolean({ default: true, description: "If true, Stalwart sends scheduling replies or updates to the organizer." }),
+          ),
+        }),
+        async execute(_id, params) {
+          const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+          const participantId = await client.resolveEventParticipantId({
+            accountId,
+            eventId: params.eventId,
+            participantId: params.participantId,
+          });
+          const res = await client.call([
+            [
+              "CalendarEvent/set",
+              {
+                accountId,
+                update: {
+                  [params.eventId]: buildCalendarEventRsvpPatch({
+                    participantId,
+                    participationStatus: params.participationStatus,
+                    participationComment: params.participationComment,
+                    expectReply: params.expectReply,
+                  }),
+                },
+                sendSchedulingMessages: params.sendSchedulingMessages ?? true,
+              },
+              "calendar-event-rsvp-1",
+            ],
+          ]);
+          return textResult(res);
+        },
+      },
+      { optional: true },
+    );
 
     api.logger.info("stalwart-jmap: registered tools");
   },

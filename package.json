@@ -1,6 +1,6 @@
 {
   "name": "stalwart-jmap",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "OpenClaw plugin that adds typed Stalwart JMAP tools for email, calendar, and contacts.",
   "files": [
