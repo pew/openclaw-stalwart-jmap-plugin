@@ -8,6 +8,8 @@ import {
   deriveUsingFromMethodCalls,
   ensureConfig,
   JMAP_CAPABILITIES,
+  normalizeQueryFilter,
+  normalizeQuerySort,
   resolveSessionDiscoveryUrls,
   scheduleIdsMatch,
   StalwartJmapClient,
@@ -120,6 +122,25 @@ test("buildCalendarEventRsvpPatch encodes participant ids and emits RSVP fields"
     "participants/mailto:ada~1example~01/participationComment": "Reviewing",
     "participants/mailto:ada~1example~01/expectReply": false,
   });
+});
+
+test("normalizeQueryFilter parses stringified JSON objects", () => {
+  assert.deepEqual(normalizeQueryFilter('{"inMailbox":"mbox-1"}'), {
+    inMailbox: "mbox-1",
+  });
+});
+
+test("normalizeQuerySort parses stringified JSON arrays", () => {
+  assert.deepEqual(normalizeQuerySort('[{"property":"receivedAt","isAscending":false}]'), [
+    { property: "receivedAt", isAscending: false },
+  ]);
+});
+
+test("normalizeQueryFilter rejects non-object JSON", () => {
+  assert.throws(
+    () => normalizeQueryFilter('"mbox-1"'),
+    /stalwart-jmap: filter must be a JSON object/,
+  );
 });
 
 test("scheduleIdsMatch does not lowercase mailto local parts", () => {

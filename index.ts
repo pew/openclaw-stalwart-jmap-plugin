@@ -41,6 +41,7 @@ type JmapResponse = {
 };
 
 type JmapMethodCall = [string, Record<string, unknown>, string];
+type JsonObject = Record<string, unknown>;
 
 type Address = {
   email: string;
@@ -134,6 +135,44 @@ export function ensureConfig(input: unknown): PluginConfig {
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function parseLooseJson(value: unknown, fieldName: string): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`stalwart-jmap: ${fieldName} must be valid JSON when passed as a string`);
+  }
+}
+
+export function normalizeQueryFilter(value: unknown): JsonObject | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = parseLooseJson(value, "filter");
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw new Error("stalwart-jmap: filter must be a JSON object");
+  }
+
+  return parsed as JsonObject;
+}
+
+export function normalizeQuerySort(value: unknown): unknown[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = parseLooseJson(value, "sort");
+  if (!Array.isArray(parsed)) {
+    throw new Error("stalwart-jmap: sort must be a JSON array");
+  }
+
+  return parsed;
 }
 
 function textResult(value: unknown) {
@@ -620,8 +659,10 @@ export class StalwartJmapClient {
 
 const accountIdField = Type.Optional(Type.String({ description: "Optional JMAP account id override for this call." }));
 const propertiesField = Type.Optional(Type.Array(Type.String(), { description: "Optional property whitelist." }));
-const filterField = Type.Optional(Type.Any({ description: "JMAP filter object passed through as-is." }));
-const sortField = Type.Optional(Type.Array(Type.Any(), { description: "JMAP sort array passed through as-is." }));
+const filterField = Type.Optional(Type.Record(Type.String(), Type.Any(), { description: "JMAP filter object passed through as-is." }));
+const sortField = Type.Optional(
+  Type.Array(Type.Record(Type.String(), Type.Any()), { description: "JMAP sort array passed through as-is." }),
+);
 const idsField = Type.Optional(Type.Array(Type.String(), { minItems: 1, description: "Optional object ids. Omit to fetch all." }));
 const mutableRecordField = Type.Optional(Type.Record(Type.String(), Type.Any()));
 const addressField = Type.Object({
@@ -754,13 +795,15 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         const accountId = params.accountId ?? (await client.accountIdFor("mail"));
+        const filter = normalizeQueryFilter(params.filter);
+        const sort = normalizeQuerySort(params.sort);
         const res = await client.call([
           [
             "Email/query",
             {
               accountId,
-              filter: params.filter,
-              sort: params.sort,
+              filter,
+              sort,
               position: params.position ?? 0,
               limit: params.limit ?? 25,
               calculateTotal: params.calculateTotal ?? true,
@@ -905,13 +948,15 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+        const filter = normalizeQueryFilter(params.filter);
+        const sort = normalizeQuerySort(params.sort);
         const res = await client.call([
           [
             "CalendarEvent/query",
             {
               accountId,
-              filter: params.filter,
-              sort: params.sort,
+              filter,
+              sort,
               position: params.position ?? 0,
               limit: params.limit ?? 25,
               calculateTotal: params.calculateTotal ?? true,
@@ -992,13 +1037,15 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         const accountId = params.accountId ?? (await client.accountIdFor("contacts"));
+        const filter = normalizeQueryFilter(params.filter);
+        const sort = normalizeQuerySort(params.sort);
         const res = await client.call([
           [
             "ContactCard/query",
             {
               accountId,
-              filter: params.filter,
-              sort: params.sort,
+              filter,
+              sort,
               position: params.position ?? 0,
               limit: params.limit ?? 25,
               calculateTotal: params.calculateTotal ?? true,
