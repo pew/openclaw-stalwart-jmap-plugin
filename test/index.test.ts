@@ -8,6 +8,7 @@ import {
   deriveUsingFromMethodCalls,
   ensureConfig,
   JMAP_CAPABILITIES,
+  normalizeMailQueryFilter,
   normalizeQueryFilter,
   normalizeQuerySort,
   resolveSessionDiscoveryUrls,
@@ -134,6 +135,27 @@ test("normalizeQuerySort parses stringified JSON arrays", () => {
   assert.deepEqual(normalizeQuerySort('[{"property":"receivedAt","isAscending":false}]'), [
     { property: "receivedAt", isAscending: false },
   ]);
+});
+
+test("normalizeMailQueryFilter unwraps single-item keyword arrays", () => {
+  assert.deepEqual(normalizeMailQueryFilter({ inMailbox: "mbox-1", hasKeyword: ["$seen"] }), {
+    inMailbox: "mbox-1",
+    hasKeyword: "$seen",
+  });
+});
+
+test("normalizeMailQueryFilter maps $Unread to notKeyword $seen", () => {
+  assert.deepEqual(normalizeMailQueryFilter({ inMailbox: "mbox-1", hasKeyword: ["$Unread"] }), {
+    inMailbox: "mbox-1",
+    notKeyword: "$seen",
+  });
+});
+
+test("normalizeMailQueryFilter rejects multi-item keyword arrays", () => {
+  assert.throws(
+    () => normalizeMailQueryFilter({ hasKeyword: ["$seen", "$flagged"] }),
+    /stalwart-jmap: hasKeyword must be a string, not an array/,
+  );
 });
 
 test("normalizeQueryFilter rejects non-object JSON", () => {

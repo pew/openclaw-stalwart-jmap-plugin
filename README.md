@@ -10,6 +10,8 @@ Native OpenClaw plugin for Stalwart JMAP. It adds typed tools for:
 - address book and participant identity discovery
 - raw JMAP requests when a typed wrapper is missing
 
+The package also ships a bundled OpenClaw skill so a fresh install can teach the agent how to use these tools for Stalwart-specific mail, calendar, and contact workflows.
+
 ## Install
 
 Local development install:
@@ -197,7 +199,8 @@ Usually yes, if:
 
 - the plugin is enabled
 - the tools are available
-- the request clearly matches the tool descriptions
+- the bundled `stalwart-jmap` skill is loaded for the next session
+- the request clearly matches the tool descriptions or skill description
 
 So prompts like:
 
@@ -211,29 +214,17 @@ But this is not guaranteed. Tool choice depends on the model and the rest of you
 
 ## Do you need a SKILL?
 
-No, not strictly.
+This package already ships one.
 
-The plugin works without a skill because the tools are already registered with descriptions.
+When the plugin is enabled, OpenClaw can load the bundled `stalwart-jmap` skill from this package on the next session. Restarting the gateway is usually enough for a fresh install; starting a new chat session also refreshes the skills snapshot.
 
-A skill or agent instruction is still useful if you want OpenClaw to prefer Stalwart consistently for mail and calendar work. Add guidance like:
+The bundled skill teaches OpenClaw to:
 
-```md
-When working with email, calendars, or contacts:
-- Prefer the `stalwart-jmap` plugin tools.
-- Start with `stalwart_jmap_session` if account ids or capabilities are unclear.
-- Use `stalwart_mailbox_get` before mailbox-specific mail workflows.
-- Use `stalwart_identity_get` before sending if the sender identity is unclear.
-- Use `stalwart_mail_query` and `stalwart_mail_get` for mail reads.
-- Use `stalwart_mail_send` for outbound mail.
-- Use `stalwart_addressbook_get` before creating contacts if the writable store is unclear.
-- Use `stalwart_contact_set` for contact create, update, and delete.
-- Use `stalwart_participant_identity_get` before calendar scheduling or RSVP work if the acting identity is unclear.
-- Use `stalwart_calendar_get`, `stalwart_calendar_event_query`, and `stalwart_calendar_event_set` for calendar create and edit flows.
-- Use `stalwart_calendar_event_rsvp` for accept, tentative, decline, or reset RSVP actions.
-- Do not invent mailbox ids, account ids, or identity ids; resolve them first.
-```
+- prefer the typed Stalwart tools over the raw JMAP tool
+- resolve mailbox, identity, address book, calendar, and participant ids before acting
+- use Stalwart/JMAP mail filter semantics correctly, including unread mail as `notKeyword: "$seen"`
 
-If you already maintain agent instructions or a skill pack, put that there. If not, the plugin can still be used directly.
+If you already maintain your own agent instructions, you can still add stronger local preferences there, but a dedicated skill is no longer something the user has to create manually.
 
 ## Repo verification
 

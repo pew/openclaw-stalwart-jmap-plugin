@@ -175,6 +175,39 @@ export function normalizeQuerySort(value: unknown): unknown[] | undefined {
   return parsed;
 }
 
+export function normalizeMailQueryFilter(value: unknown): JsonObject | undefined {
+  const filter = normalizeQueryFilter(value);
+  if (!filter) {
+    return undefined;
+  }
+
+  const normalized = { ...filter };
+
+  for (const fieldName of ["hasKeyword", "notKeyword"] as const) {
+    const fieldValue = normalized[fieldName];
+    if (!Array.isArray(fieldValue)) {
+      continue;
+    }
+    if (fieldValue.length !== 1 || typeof fieldValue[0] !== "string") {
+      throw new Error(`stalwart-jmap: ${fieldName} must be a string, not an array`);
+    }
+    normalized[fieldName] = fieldValue[0];
+  }
+
+  if (normalized.hasKeyword === "$Unread") {
+    delete normalized.hasKeyword;
+    if (normalized.notKeyword === undefined) {
+      normalized.notKeyword = "$seen";
+    }
+  }
+
+  if (normalized.notKeyword === "$Unread") {
+    normalized.notKeyword = "$seen";
+  }
+
+  return normalized;
+}
+
 function textResult(value: unknown) {
   return {
     content: [
@@ -659,7 +692,7 @@ export class StalwartJmapClient {
 
 const accountIdField = Type.Optional(Type.String({ description: "Optional JMAP account id override for this call." }));
 const propertiesField = Type.Optional(Type.Array(Type.String(), { description: "Optional property whitelist." }));
-const filterField = Type.Optional(Type.Record(Type.String(), Type.Any(), { description: "JMAP filter object passed through as-is." }));
+const filterField = Type.Optional(Type.Record(Type.String(), Type.Any(), { description: "JMAP filter object passed through as-is. Use an object, not a JSON string." }));
 const sortField = Type.Optional(
   Type.Array(Type.Record(Type.String(), Type.Any()), { description: "JMAP sort array passed through as-is." }),
 );
@@ -784,7 +817,8 @@ export default definePluginEntry({
     api.registerTool({
       name: "stalwart_mail_query",
       label: "Stalwart Mail Query",
-      description: "Query email ids using JMAP Email/query.",
+      description:
+        "Query email ids using JMAP Email/query. Use a filter object. For unread mail use notKeyword: \"$seen\". hasKeyword/notKeyword take single strings, not arrays.",
       parameters: Type.Object({
         accountId: accountIdField,
         filter: filterField,
@@ -795,7 +829,7 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         const accountId = params.accountId ?? (await client.accountIdFor("mail"));
-        const filter = normalizeQueryFilter(params.filter);
+        const filter = normalizeMailQueryFilter(params.filter);
         const sort = normalizeQuerySort(params.sort);
         const res = await client.call([
           [
