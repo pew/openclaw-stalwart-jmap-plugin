@@ -1,6 +1,6 @@
 ---
 name: stalwart-jmap
-description: Use the Stalwart JMAP plugin tools for Stalwart-hosted mail, calendar, and contacts. Resolve ids before acting, prefer typed tools, and use Stalwart/JMAP-specific filter semantics.
+description: Use the Stalwart JMAP plugin tools for Stalwart-hosted mail, calendar, and contacts. This plugin exposes full read/write capabilities. Resolve ids before acting, prefer typed tools, and use Stalwart/JMAP-specific filter semantics.
 metadata: { "openclaw": { "emoji": "🦀" } }
 ---
 
@@ -11,6 +11,7 @@ Use this skill when the user is working with a Stalwart server through the `stal
 ## Core Rules
 
 - Prefer the typed `stalwart_*` tools. Use `stalwart_jmap_request` only when no typed tool fits.
+- This plugin is full read/write, not read-only. Use its send, update, create, destroy, and RSVP tools when the user asks for changes.
 - Do not invent `accountId`, `mailboxId`, `identityId`, `calendarId`, `addressBookId`, or participant ids. Resolve them first.
 - `accountId` is usually optional. Let the plugin resolve it unless the user provides an explicit override.
 - For JMAP auth, Stalwart supports OAuth bearer tokens and mailbox username/password. Do not assume Stalwart API keys work for JMAP.

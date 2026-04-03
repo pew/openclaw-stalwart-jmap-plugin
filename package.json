@@ -2,7 +2,16 @@
   "name": "stalwart-jmap",
   "version": "0.3.1",
   "type": "module",
-  "description": "OpenClaw plugin that adds typed Stalwart JMAP tools for email, calendar, and contacts.",
+  "description": "OpenClaw plugin that adds Stalwart JMAP tools for email, calendar, and contacts.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pew/openclaw-stalwart-jmap-plugin.git"
+  },
+  "homepage": "https://github.com/pew/openclaw-stalwart-jmap-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/pew/openclaw-stalwart-jmap-plugin/issues"
+  },
   "files": [
     "dist/index.js",
     "skills",
@@ -28,6 +37,14 @@
     "extensions": [
       "./dist/index.js"
     ],
+    "compat": {
+      "pluginApi": ">=2026.3.24",
+      "minGatewayVersion": "2026.3.24"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24",
+      "pluginSdkVersion": "2026.3.24"
+    },
     "install": {
       "npmSpec": "stalwart-jmap",
       "defaultChoice": "npm",

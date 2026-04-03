@@ -706,7 +706,7 @@ const addressField = Type.Object({
 export default definePluginEntry({
   id: "stalwart-jmap",
   name: "Stalwart JMAP",
-  description: "Typed Stalwart JMAP tools for mail, calendar, and contacts, plus a raw JMAP request escape hatch.",
+  description: "Stalwart JMAP tools for mail, calendar, and contacts, plus a raw JMAP request escape hatch.",
   register(api) {
     const cfg = ensureConfig(api.pluginConfig);
     const client = new StalwartJmapClient(cfg);
@@ -776,21 +776,18 @@ export default definePluginEntry({
       },
     });
 
-    api.registerTool(
-      {
-        name: "stalwart_jmap_request",
-        label: "Stalwart Raw JMAP Request",
-        description: "Low-level JMAP escape hatch. Sends raw methodCalls to Stalwart and returns raw methodResponses. Provide using explicitly for non-core capabilities not inferred by the plugin.",
-        parameters: Type.Object({
-          methodCalls: Type.Array(Type.Any(), { minItems: 1, description: "Raw JMAP methodCalls array." }),
-          using: Type.Optional(Type.Array(Type.String(), { description: "Optional JMAP capability URNs." })),
-        }),
-        async execute(_id, params) {
-          return textResult(await client.call(params.methodCalls, params.using));
-        },
+    api.registerTool({
+      name: "stalwart_jmap_request",
+      label: "Stalwart Raw JMAP Request",
+      description: "Low-level JMAP escape hatch. Sends raw methodCalls to Stalwart and returns raw methodResponses. Provide using explicitly for non-core capabilities not inferred by the plugin.",
+      parameters: Type.Object({
+        methodCalls: Type.Array(Type.Any(), { minItems: 1, description: "Raw JMAP methodCalls array." }),
+        using: Type.Optional(Type.Array(Type.String(), { description: "Optional JMAP capability URNs." })),
+      }),
+      async execute(_id, params) {
+        return textResult(await client.call(params.methodCalls, params.using));
       },
-      { optional: true },
-    );
+    });
 
     api.registerTool({
       name: "stalwart_participant_identity_get",
@@ -883,72 +880,66 @@ export default definePluginEntry({
       },
     });
 
-    api.registerTool(
-      {
-        name: "stalwart_mail_send",
-        label: "Stalwart Mail Send",
-        description: "Send a plain-text email using Email/set plus EmailSubmission/set. If mailboxId is omitted, the plugin uses the Sent mailbox role.",
-        parameters: Type.Object({
-          accountId: accountIdField,
-          identityId: Type.Optional(Type.String({ description: "Optional JMAP identity id override." })),
-          mailboxId: Type.Optional(Type.String({ description: "Optional mailbox id to store the created message in. Defaults to the Sent mailbox role." })),
-          from: Type.Optional(addressField),
-          to: Type.Array(addressField, { minItems: 1 }),
-          cc: Type.Optional(Type.Array(addressField)),
-          bcc: Type.Optional(Type.Array(addressField)),
-          replyTo: Type.Optional(Type.Array(addressField)),
-          subject: Type.String(),
-          text: Type.String({ description: "Plain-text body." }),
-          keywords: Type.Optional(Type.Record(Type.String(), Type.Boolean())),
-        }),
-        async execute(_id, params) {
-          const accountId = params.accountId ?? (await client.accountIdFor("mail"));
-          const identityId = params.identityId ?? (await client.resolveIdentityId(accountId));
-          const mailboxId = params.mailboxId ?? (await client.resolveMailboxIdByRole("sent", accountId));
-          const res = await client.call(
-            buildMailSendMethodCalls({
-              accountId,
-              identityId,
-              mailboxId,
-              mail: params,
-            }),
-          );
-          return textResult(res);
-        },
-      },
-      { optional: true },
-    );
-
-    api.registerTool(
-      {
-        name: "stalwart_mail_update",
-        label: "Stalwart Mail Update",
-        description: "Update email properties via JMAP Email/set. Use this for mailbox moves, keyword changes, or flags.",
-        parameters: Type.Object({
-          accountId: accountIdField,
-          update: Type.Record(Type.String(), Type.Any(), {
-            description: "Map of emailId -> patch object, for example {\"msg-id\": {\"mailboxIds/<mailboxId>\": true}}",
+    api.registerTool({
+      name: "stalwart_mail_send",
+      label: "Stalwart Mail Send",
+      description: "Send a plain-text email using Email/set plus EmailSubmission/set. If mailboxId is omitted, the plugin uses the Sent mailbox role.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        identityId: Type.Optional(Type.String({ description: "Optional JMAP identity id override." })),
+        mailboxId: Type.Optional(Type.String({ description: "Optional mailbox id to store the created message in. Defaults to the Sent mailbox role." })),
+        from: Type.Optional(addressField),
+        to: Type.Array(addressField, { minItems: 1 }),
+        cc: Type.Optional(Type.Array(addressField)),
+        bcc: Type.Optional(Type.Array(addressField)),
+        replyTo: Type.Optional(Type.Array(addressField)),
+        subject: Type.String(),
+        text: Type.String({ description: "Plain-text body." }),
+        keywords: Type.Optional(Type.Record(Type.String(), Type.Boolean())),
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("mail"));
+        const identityId = params.identityId ?? (await client.resolveIdentityId(accountId));
+        const mailboxId = params.mailboxId ?? (await client.resolveMailboxIdByRole("sent", accountId));
+        const res = await client.call(
+          buildMailSendMethodCalls({
+            accountId,
+            identityId,
+            mailboxId,
+            mail: params,
           }),
-          destroy: Type.Optional(Type.Array(Type.String())),
-        }),
-        async execute(_id, params) {
-          const accountId = params.accountId ?? (await client.accountIdFor("mail"));
-          const res = await client.call([
-            [
-              "Email/set",
-              {
-                accountId,
-                update: params.update,
-                destroy: params.destroy,
-              },
-              "mail-update-1",
-            ],
-          ]);
-          return textResult(res);
-        },
+        );
+        return textResult(res);
       },
-      { optional: true },
-    );
+    });
+
+    api.registerTool({
+      name: "stalwart_mail_update",
+      label: "Stalwart Mail Update",
+      description: "Update email properties via JMAP Email/set. Use this for mailbox moves, keyword changes, or flags.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        update: Type.Record(Type.String(), Type.Any(), {
+          description: "Map of emailId -> patch object, for example {\"msg-id\": {\"mailboxIds/<mailboxId>\": true}}",
+        }),
+        destroy: Type.Optional(Type.Array(Type.String())),
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("mail"));
+        const res = await client.call([
+          [
+            "Email/set",
+            {
+              accountId,
+              update: params.update,
+              destroy: params.destroy,
+            },
+            "mail-update-1",
+          ],
+        ]);
+        return textResult(res);
+      },
+    });
 
     api.registerTool({
       name: "stalwart_calendar_get",
@@ -1020,42 +1011,39 @@ export default definePluginEntry({
       },
     });
 
-    api.registerTool(
-      {
-        name: "stalwart_calendar_event_set",
-        label: "Stalwart Calendar Event Set",
-        description: "Create, update, or destroy calendar events via JMAP CalendarEvent/set.",
-        parameters: Type.Object({
-          accountId: accountIdField,
-          calendarId: Type.Optional(Type.String({ description: "Default calendar id applied to created events that omit calendarIds." })),
-          create: mutableRecordField,
-          update: mutableRecordField,
-          destroy: Type.Optional(Type.Array(Type.String())),
-          sendSchedulingMessages: Type.Optional(
-            Type.Boolean({ default: false, description: "If true, JMAP scheduling messages are sent for event creates or updates." }),
-          ),
-        }),
-        async execute(_id, params) {
-          const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
-          const calendarId = params.create ? params.calendarId ?? (await client.resolveCalendarId(accountId)) : undefined;
-          const res = await client.call([
-            [
-              "CalendarEvent/set",
-              {
-                accountId,
-                create: calendarId ? applyDefaultContainerIds(params.create, "calendarIds", calendarId) : params.create,
-                update: params.update,
-                destroy: params.destroy,
-                sendSchedulingMessages: params.sendSchedulingMessages ?? false,
-              },
-              "calendar-event-set-1",
-            ],
-          ]);
-          return textResult(res);
-        },
+    api.registerTool({
+      name: "stalwart_calendar_event_set",
+      label: "Stalwart Calendar Event Set",
+      description: "Create, update, or destroy calendar events via JMAP CalendarEvent/set.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        calendarId: Type.Optional(Type.String({ description: "Default calendar id applied to created events that omit calendarIds." })),
+        create: mutableRecordField,
+        update: mutableRecordField,
+        destroy: Type.Optional(Type.Array(Type.String())),
+        sendSchedulingMessages: Type.Optional(
+          Type.Boolean({ default: false, description: "If true, JMAP scheduling messages are sent for event creates or updates." }),
+        ),
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+        const calendarId = params.create ? params.calendarId ?? (await client.resolveCalendarId(accountId)) : undefined;
+        const res = await client.call([
+          [
+            "CalendarEvent/set",
+            {
+              accountId,
+              create: calendarId ? applyDefaultContainerIds(params.create, "calendarIds", calendarId) : params.create,
+              update: params.update,
+              destroy: params.destroy,
+              sendSchedulingMessages: params.sendSchedulingMessages ?? false,
+            },
+            "calendar-event-set-1",
+          ],
+        ]);
+        return textResult(res);
       },
-      { optional: true },
-    );
+    });
 
     api.registerTool({
       name: "stalwart_contact_query",
@@ -1109,90 +1097,84 @@ export default definePluginEntry({
       },
     });
 
-    api.registerTool(
-      {
-        name: "stalwart_contact_set",
-        label: "Stalwart Contact Set",
-        description: "Create, update, or destroy contacts via JMAP ContactCard/set. If a created card omits addressBookIds, the plugin applies a writable default address book.",
-        parameters: Type.Object({
-          accountId: accountIdField,
-          addressBookId: Type.Optional(Type.String({ description: "Default address book id applied to created contacts that omit addressBookIds." })),
-          create: mutableRecordField,
-          update: mutableRecordField,
-          destroy: Type.Optional(Type.Array(Type.String())),
-        }),
-        async execute(_id, params) {
-          const accountId = params.accountId ?? (await client.accountIdFor("contacts"));
-          const addressBookId = params.create ? params.addressBookId ?? (await client.resolveAddressBookId(accountId)) : undefined;
-          const res = await client.call([
-            [
-              "ContactCard/set",
-              {
-                accountId,
-                create: addressBookId ? applyDefaultContainerIds(params.create, "addressBookIds", addressBookId) : params.create,
-                update: params.update,
-                destroy: params.destroy,
-              },
-              "contact-set-1",
-            ],
-          ]);
-          return textResult(res);
-        },
+    api.registerTool({
+      name: "stalwart_contact_set",
+      label: "Stalwart Contact Set",
+      description: "Create, update, or destroy contacts via JMAP ContactCard/set. If a created card omits addressBookIds, the plugin applies a writable default address book.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        addressBookId: Type.Optional(Type.String({ description: "Default address book id applied to created contacts that omit addressBookIds." })),
+        create: mutableRecordField,
+        update: mutableRecordField,
+        destroy: Type.Optional(Type.Array(Type.String())),
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("contacts"));
+        const addressBookId = params.create ? params.addressBookId ?? (await client.resolveAddressBookId(accountId)) : undefined;
+        const res = await client.call([
+          [
+            "ContactCard/set",
+            {
+              accountId,
+              create: addressBookId ? applyDefaultContainerIds(params.create, "addressBookIds", addressBookId) : params.create,
+              update: params.update,
+              destroy: params.destroy,
+            },
+            "contact-set-1",
+          ],
+        ]);
+        return textResult(res);
       },
-      { optional: true },
-    );
+    });
 
-    api.registerTool(
-      {
-        name: "stalwart_calendar_event_rsvp",
-        label: "Stalwart Calendar Event RSVP",
-        description: "Accept, tentatively accept, decline, or reset your RSVP for a calendar event. The plugin matches your default participant identity unless participantId is provided.",
-        parameters: Type.Object({
-          accountId: accountIdField,
-          eventId: Type.String({ description: "CalendarEvent id to update. A synthetic instance id is allowed for single-occurrence RSVPs." }),
-          participantId: Type.Optional(Type.String({ description: "Optional participant key override inside the event participants object." })),
-          participationStatus: Type.Union([
-            Type.Literal("accepted"),
-            Type.Literal("tentative"),
-            Type.Literal("declined"),
-            Type.Literal("needs-action"),
-          ]),
-          participationComment: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-          expectReply: Type.Optional(Type.Boolean()),
-          sendSchedulingMessages: Type.Optional(
-            Type.Boolean({ default: true, description: "If true, Stalwart sends scheduling replies or updates to the organizer." }),
-          ),
-        }),
-        async execute(_id, params) {
-          const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
-          const participantId = await client.resolveEventParticipantId({
-            accountId,
-            eventId: params.eventId,
-            participantId: params.participantId,
-          });
-          const res = await client.call([
-            [
-              "CalendarEvent/set",
-              {
-                accountId,
-                update: {
-                  [params.eventId]: buildCalendarEventRsvpPatch({
-                    participantId,
-                    participationStatus: params.participationStatus,
-                    participationComment: params.participationComment,
-                    expectReply: params.expectReply,
-                  }),
-                },
-                sendSchedulingMessages: params.sendSchedulingMessages ?? true,
+    api.registerTool({
+      name: "stalwart_calendar_event_rsvp",
+      label: "Stalwart Calendar Event RSVP",
+      description: "Accept, tentatively accept, decline, or reset your RSVP for a calendar event. The plugin matches your default participant identity unless participantId is provided.",
+      parameters: Type.Object({
+        accountId: accountIdField,
+        eventId: Type.String({ description: "CalendarEvent id to update. A synthetic instance id is allowed for single-occurrence RSVPs." }),
+        participantId: Type.Optional(Type.String({ description: "Optional participant key override inside the event participants object." })),
+        participationStatus: Type.Union([
+          Type.Literal("accepted"),
+          Type.Literal("tentative"),
+          Type.Literal("declined"),
+          Type.Literal("needs-action"),
+        ]),
+        participationComment: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        expectReply: Type.Optional(Type.Boolean()),
+        sendSchedulingMessages: Type.Optional(
+          Type.Boolean({ default: true, description: "If true, Stalwart sends scheduling replies or updates to the organizer." }),
+        ),
+      }),
+      async execute(_id, params) {
+        const accountId = params.accountId ?? (await client.accountIdFor("calendars"));
+        const participantId = await client.resolveEventParticipantId({
+          accountId,
+          eventId: params.eventId,
+          participantId: params.participantId,
+        });
+        const res = await client.call([
+          [
+            "CalendarEvent/set",
+            {
+              accountId,
+              update: {
+                [params.eventId]: buildCalendarEventRsvpPatch({
+                  participantId,
+                  participationStatus: params.participationStatus,
+                  participationComment: params.participationComment,
+                  expectReply: params.expectReply,
+                }),
               },
-              "calendar-event-rsvp-1",
-            ],
-          ]);
-          return textResult(res);
-        },
+              sendSchedulingMessages: params.sendSchedulingMessages ?? true,
+            },
+            "calendar-event-rsvp-1",
+          ],
+        ]);
+        return textResult(res);
       },
-      { optional: true },
-    );
+    });
 
     api.logger.info("stalwart-jmap: registered tools");
   },

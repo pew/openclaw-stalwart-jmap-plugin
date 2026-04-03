@@ -1,7 +1,7 @@
 {
   "id": "stalwart-jmap",
   "name": "Stalwart JMAP",
-  "description": "Typed Stalwart JMAP tools for email, calendars, contacts, and raw JMAP escape hatches.",
+  "description": "Stalwart JMAP tools for email, calendars, contacts, and raw JMAP escape hatches.",
   "version": "0.3.1",
   "skills": ["skills"],
   "uiHints": {

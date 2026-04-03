@@ -1,6 +1,6 @@
 # OpenClaw Stalwart JMAP plugin
 
-Native OpenClaw plugin for Stalwart JMAP. It adds typed tools for:
+Native OpenClaw plugin for Stalwart JMAP. It adds tools for:
 
 - email reads and updates
 - email sending
@@ -8,7 +8,9 @@ Native OpenClaw plugin for Stalwart JMAP. It adds typed tools for:
 - calendar reads, event writes, and RSVP replies
 - contact reads and writes
 - address book and participant identity discovery
-- raw JMAP requests when a typed wrapper is missing
+- raw JMAP requests when a specific wrapper is missing
+
+All plugin tools are registered by default when the plugin is enabled, including read and write operations. OpenClaw should always see the full mail, calendar, contact, and raw JMAP surface from this plugin.
 
 The package also ships a bundled OpenClaw skill so a fresh install can teach the agent how to use these tools for Stalwart-specific mail, calendar, and contact workflows.
 
@@ -133,7 +135,7 @@ openclaw gateway restart
 
 If `curl` with the same credentials works on the OpenClaw host but the plugin fails, the usual cause is stale OpenClaw install/config state. Reinstall with `-l`, verify the plugin config, and restart the gateway.
 
-## Optional tool allowlist
+## Tool allowlist
 
 If you run OpenClaw with `tools.allow`, include this plugin id:
 
@@ -146,7 +148,7 @@ If you intentionally allow all plugins and tools, you do not need this.
 
 ## Tools
 
-Always available:
+Always available when the plugin is enabled:
 
 - `stalwart_jmap_session`
 - `stalwart_mailbox_get`
@@ -160,9 +162,6 @@ Always available:
 - `stalwart_calendar_event_get`
 - `stalwart_contact_query`
 - `stalwart_contact_get`
-
-Optional or side-effecting:
-
 - `stalwart_jmap_request`
 - `stalwart_mail_send`
 - `stalwart_mail_update`
@@ -202,6 +201,8 @@ Usually yes, if:
 - the bundled `stalwart-jmap` skill is loaded for the next session
 - the request clearly matches the tool descriptions or skill description
 
+This plugin is not read-only. When enabled, it exposes both read and write tools to OpenClaw.
+
 So prompts like:
 
 - "send an email to Alice"
@@ -220,7 +221,7 @@ When the plugin is enabled, OpenClaw can load the bundled `stalwart-jmap` skill 
 
 The bundled skill teaches OpenClaw to:
 
-- prefer the typed Stalwart tools over the raw JMAP tool
+- prefer the Stalwart tools over the raw JMAP tool
 - resolve mailbox, identity, address book, calendar, and participant ids before acting
 - use Stalwart/JMAP mail filter semantics correctly, including unread mail as `notKeyword: "$seen"`
 
